@@ -1,64 +1,115 @@
+/*
+ * This file ("Traincraft.java") is part of the Traincraft mod for Minecraft.
+ * It is created by all people that are listed with @author below.
+ * It is distributed under the Traincraft License (https://github.com/Traincraft/Traincraft/blob/master/LICENSE.md)
+ * You can find the source code at https://github.com/Traincraft/Traincraft
+ *
+ * © 2011-2017
+ */
+
 package si.meansoft.traincraft;
 
-import cpw.mods.fml.common.Mod;
-import cpw.mods.fml.common.Mod.EventHandler;
-import cpw.mods.fml.common.SidedProxy;
-import cpw.mods.fml.common.event.*;
-import si.meansoft.meancore.common.library.InfoMC;
-import si.meansoft.meancore.event.Fingerprint;
-import si.meansoft.meancore.proxy.IProxy;
-import si.meansoft.traincraft.common.library.InfoTC;
-import si.meansoft.traincraft.event.*;
+import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.fluids.FluidRegistry;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.SidedProxy;
+import net.minecraftforge.fml.common.event.FMLInitializationEvent;
+import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
+import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.network.NetworkRegistry;
+import net.minecraftforge.fml.common.registry.GameRegistry;
+import net.minecraftforge.fml.relauncher.Side;
+import org.apache.logging.log4j.Logger;
+import si.meansoft.traincraft.blocks.BlockTrackStraight;
+import si.meansoft.traincraft.gen.WorldGen;
+import si.meansoft.traincraft.network.CommonProxy;
+import si.meansoft.traincraft.network.GuiHandler;
 
-@Mod(modid = InfoTC.MODID, name= InfoTC.MODNAME, certificateFingerprint = InfoTC.FINGERPRINT, version = InfoTC.VERSION, guiFactory = InfoTC.GUI_FACTORY)
+/**
+ * @author canitzp
+ */
+@Mod(modid = Traincraft.MODID, name = Traincraft.NAME, version = Traincraft.VERSION)
 public class Traincraft {
 
-    @Mod.Instance(InfoTC.MODID)
-    public static Traincraft instance;
+    public static final String MODID = "traincraft";
+    public static final String NAME = "@MODNAME@";
+    public static final String VERSION = "@VERSION@";
+    public static final String CLIENTPROXY = "si.meansoft.traincraft.network.ClientProxy";
+    public static final String COMMONPROXY = "si.meansoft.traincraft.network.CommonProxy";
 
-    private static ServerTC sr = new ServerTC();
+    @Mod.Instance(Traincraft.MODID)
+    public static Traincraft INSTANCE;
 
-    @SidedProxy(clientSide = InfoTC.CLIENT_PROXY, serverSide = InfoTC.SERVER_PROXY)
-    public static IProxy proxy;
+    @SidedProxy(clientSide = Traincraft.CLIENTPROXY, serverSide = Traincraft.COMMONPROXY)
+    public static CommonProxy proxy;
 
-    @EventHandler
-    public void invalidFingerprint(FMLFingerprintViolationEvent evt) {
-        Fingerprint fp = new Fingerprint();
-        fp.init(evt, InfoTC.FINGERPRINT);
+    public static Logger logger;
+    public static CreativeTabs generalTab, trackTab;
+
+    public static Side loadedSide;
+
+    static {
+        /*
+         * To initialize the buckets for fluids, if we don't call this, we haven't buckets
+         * and this has to be called before preInit
+         */
+        FluidRegistry.enableUniversalBucket();
     }
 
-    @EventHandler
-    public void preInit(FMLPreInitializationEvent evt) {
-        System.out.println("TC-0: " + evt.getSuggestedConfigurationFile());
-        PreInitTC pi = new PreInitTC();
-        pi.init(evt);
+    @Mod.EventHandler
+    public void preInit(FMLPreInitializationEvent event) {
+        // Get the current side, instead of calling a forge method every time. Better for performance.
+        loadedSide = event.getSide();
+        logger = event.getModLog();
+        logger.info("[Pre Initializing] Let the trains out! " + NAME + ": " + VERSION);
+        // Creating the two creative tabs for Traincraft. One for bLocks and items and the second for the rails
+        generalTab = new CreativeTabs("traincraft_general_tab") {
+            @Override
+            public ItemStack getIconItemStack() {
+                return new ItemStack(Registry.oilSand);
+            }
+
+            @Override
+            public Item getTabIconItem() {
+                return null;
+            }
+        };
+        trackTab = new CreativeTabs("traincraft_track_tab") {
+            @Override
+            public ItemStack getIconItemStack() {
+                return new ItemStack(BlockTrackStraight.block);
+            }
+
+            @Override
+            public Item getTabIconItem() {
+                return null;
+            }
+        };
+        logger.info("[Pre Initializing] Register Blocks, Items, ...");
+        Registry.preInit(event);
+        GameRegistry.registerWorldGenerator(new WorldGen(), 10);
+        NetworkRegistry.INSTANCE.registerGuiHandler(INSTANCE, new GuiHandler());
+        logger.info("[Pre Initializing] Register Renderer");
+        proxy.preInit(event);
+        logger.info("[Pre Initializing] Finished this phase");
     }
 
-    @EventHandler
-    public void init(FMLInitializationEvent evt) {
-        InitTC in = new InitTC();
-        in.init(evt);
+    @Mod.EventHandler
+    public void init(FMLInitializationEvent event) {
+        logger.info("[Initializing] Starting phase");
+        logger.info("[Initializing] Creating recipes");
+        RecipeRegistry.init();
+        proxy.init(event);
+        logger.info("[Initializing] Finished phase");
     }
 
-    @EventHandler
-    public void readIMC(FMLInterModComms.IMCEvent evt) {
-        ReadIMCTC imc = new ReadIMCTC();
-        imc.init(evt);
+    @Mod.EventHandler
+    public void postInit(FMLPostInitializationEvent event) {
+        logger.info("[Post Initializing] Starting phase");
+        proxy.postInit(event);
+        logger.info("[Post Initializing] Nothing can stop the trains!");
     }
 
-    @EventHandler
-    public void postInit(FMLPostInitializationEvent evt) {
-        PostInitTC pi = new PostInitTC();
-        pi.init(evt);
-    }
-
-    @EventHandler
-    public void serverStarting(FMLServerStartingEvent evt) {
-        sr.initStart(evt);
-    }
-
-    @EventHandler
-    public void serverStopping(FMLServerStoppingEvent evt) {
-        sr.initStop(evt);
-    }
 }
